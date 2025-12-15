@@ -5,12 +5,11 @@ import {
 import { Tank, Vector2, Bullet, PowerUp } from '../types';
 
 /**
- * AABB Collision for Tank vs Tile.
- * Uses a small buffer (epsilon) to prevent floating-point precision issues
- * from making the tank feel "sticky" when touching walls.
+ * Detecção de colisão AABB refinada.
+ * Utiliza um pequeno buffer para permitir que o tanque deslize em superfícies.
  */
 export const checkTileCollision = (x: number, y: number, map: number[][]): boolean => {
-  const epsilon = 0.5; // Small buffer for smoother sliding
+  const epsilon = 0.8; // Buffer para suavizar deslizamento em paredes
   const halfSize = (TANK_HITBOX / 2) - epsilon;
 
   const left = Math.floor((x - halfSize) / TILE_SIZE);
@@ -18,19 +17,18 @@ export const checkTileCollision = (x: number, y: number, map: number[][]): boole
   const top = Math.floor((y - halfSize) / TILE_SIZE);
   const bottom = Math.floor((y + halfSize) / TILE_SIZE);
 
-  // Map Boundary Checks
+  // Limites do mapa
   if (x - halfSize < 0 || x + halfSize >= MAP_WIDTH * TILE_SIZE || 
       y - halfSize < 0 || y + halfSize >= MAP_HEIGHT * TILE_SIZE) {
     return true;
   }
 
-  // Iterate through potentially colliding tiles
+  // Checagem de tiles obstrutivos
   for (let r = top; r <= bottom; r++) {
     for (let c = left; c <= right; c++) {
       if (r < 0 || r >= MAP_HEIGHT || c < 0 || c >= MAP_WIDTH) continue;
       
       const tile = map[r][c];
-      // Blocks that prevent movement (Brick, Steel, Water)
       if (tile === TILE_BRICK || tile === TILE_STEEL || tile === TILE_WATER) {
         return true;
       }
@@ -39,7 +37,6 @@ export const checkTileCollision = (x: number, y: number, map: number[][]): boole
   return false;
 };
 
-// Circle vs Rect (Bullet vs Tile)
 export const checkBulletMapCollision = (bullet: Bullet, map: number[][]): { hit: boolean, tileType: number, c: number, r: number } => {
   const c = Math.floor(bullet.position.x / TILE_SIZE);
   const r = Math.floor(bullet.position.y / TILE_SIZE);
@@ -53,7 +50,6 @@ export const checkBulletMapCollision = (bullet: Bullet, map: number[][]): { hit:
   return { hit: false, tileType: 0, c: -1, r: -1 };
 };
 
-// Circle vs Circle (Bullet vs Tank)
 export const checkBulletTankCollision = (bullet: Bullet, tank: Tank): boolean => {
   if (tank.isDead || bullet.ownerId === tank.id || bullet.team === tank.team) return false;
   
@@ -65,7 +61,6 @@ export const checkBulletTankCollision = (bullet: Bullet, tank: Tank): boolean =>
   return distSq < (combinedRadius * combinedRadius);
 };
 
-// Circle vs Circle (Tank vs PowerUp)
 export const checkTankPowerUpCollision = (tank: Tank, powerUp: PowerUp): boolean => {
   if (tank.isDead) return false;
   const dx = tank.position.x - powerUp.position.x;
@@ -81,14 +76,8 @@ export const getSpawnPoint = (team: 'BLUE' | 'RED', index: number): Vector2 => {
     const xTile = xOffsets[index % xOffsets.length];
     
     if (team === 'RED') {
-        return { 
-            x: xTile * TILE_SIZE + (TILE_SIZE / 2), 
-            y: 1 * TILE_SIZE + (TILE_SIZE / 2) 
-        };
+        return { x: xTile * TILE_SIZE + (TILE_SIZE / 2), y: 1 * TILE_SIZE + (TILE_SIZE / 2) };
     } else {
-        return {
-            x: xTile * TILE_SIZE + (TILE_SIZE / 2),
-            y: (MAP_HEIGHT - 2) * TILE_SIZE + (TILE_SIZE / 2)
-        };
+        return { x: xTile * TILE_SIZE + (TILE_SIZE / 2), y: (MAP_HEIGHT - 2) * TILE_SIZE + (TILE_SIZE / 2) };
     }
 }
