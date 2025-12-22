@@ -5,30 +5,32 @@ import {
 import { Tank, Vector2, Bullet, PowerUp } from '../types';
 
 /**
- * Detecção de colisão AABB refinada.
- * Utiliza um pequeno buffer para permitir que o tanque deslize em superfícies.
+ * Refined AABB collision detection.
+ * Uses a precise boundary check with a minimal epsilon to allow sliding 
+ * while preventing penetration into obstructive tiles.
  */
 export const checkTileCollision = (x: number, y: number, map: number[][]): boolean => {
-  const epsilon = 0.8; // Buffer para suavizar deslizamento em paredes
+  const epsilon = 1.0; 
   const halfSize = (TANK_HITBOX / 2) - epsilon;
 
-  const left = Math.floor((x - halfSize) / TILE_SIZE);
-  const right = Math.floor((x + halfSize) / TILE_SIZE);
-  const top = Math.floor((y - halfSize) / TILE_SIZE);
-  const bottom = Math.floor((y + halfSize) / TILE_SIZE);
-
-  // Limites do mapa
-  if (x - halfSize < 0 || x + halfSize >= MAP_WIDTH * TILE_SIZE || 
-      y - halfSize < 0 || y + halfSize >= MAP_HEIGHT * TILE_SIZE) {
+  // Map boundary constraints
+  if (x - halfSize < 0 || x + halfSize > MAP_WIDTH * TILE_SIZE || 
+      y - halfSize < 0 || y + halfSize > MAP_HEIGHT * TILE_SIZE) {
     return true;
   }
 
-  // Checagem de tiles obstrutivos
+  // Calculate the range of tiles the tank overlaps
+  const left = Math.floor((x - halfSize) / TILE_SIZE);
+  const right = Math.floor((x + halfSize - 0.1) / TILE_SIZE);
+  const top = Math.floor((y - halfSize) / TILE_SIZE);
+  const bottom = Math.floor((y + halfSize - 0.1) / TILE_SIZE);
+
   for (let r = top; r <= bottom; r++) {
     for (let c = left; c <= right; c++) {
       if (r < 0 || r >= MAP_HEIGHT || c < 0 || c >= MAP_WIDTH) continue;
       
       const tile = map[r][c];
+      // Brick, Steel, and Water are obstructive for tanks
       if (tile === TILE_BRICK || tile === TILE_STEEL || tile === TILE_WATER) {
         return true;
       }

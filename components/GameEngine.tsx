@@ -17,46 +17,90 @@ import VirtualJoystick from './VirtualJoystick';
 
 interface GameEngineProps {
   playerProfile: PlayerProfile;
-  onGameOver: (winner: Team) => void;
+  onGameOver: (winner: Team, earnedBP: number) => void;
+  onUpdateSkin?: (skin: SkinId) => void;
+  onUnlockSkin?: (skin: SkinId) => void;
 }
 
 const PowerUpHUDItem: React.FC<{ type: PowerUpType, frames: number }> = ({ type, frames }) => {
   const seconds = (frames / 60).toFixed(1);
+  
   const getIcon = () => {
     switch (type) {
-      case 'SHIELD': return <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z" />;
-      case 'RAPID_FIRE': return <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />;
-      case 'SPEED': return <path d="M6 17l5-5-5-5M13 17l5-5-5-5" />;
-      case 'DAMAGE': return <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z" />;
+      case 'SHIELD': 
+        return (
+          <path d="M12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3zm0 17.9c-3.7-.93-6-4.72-6-8.81V6.3l6-2.25 6 2.25v4.79c0 4.09-2.3 7.88-6 8.81z" />
+        );
+      case 'RAPID_FIRE': 
+        return (
+          <path d="M7 2v11h3v9l7-12h-4l4-8H7z" />
+        );
+      case 'SPEED': 
+        return (
+          <path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z" />
+        );
+      case 'DAMAGE': 
+        return (
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+        );
+      default: return null;
     }
   };
 
   const colors = {
-    'SHIELD': 'text-cyan-400 border-cyan-500/50',
-    'RAPID_FIRE': 'text-orange-400 border-orange-500/50',
-    'SPEED': 'text-green-400 border-green-500/50',
-    'DAMAGE': 'text-red-400 border-red-500/50'
+    'SHIELD': 'text-cyan-400 border-cyan-500/50 shadow-cyan-500/20',
+    'RAPID_FIRE': 'text-orange-400 border-orange-500/50 shadow-orange-500/20',
+    'SPEED': 'text-green-400 border-green-500/50 shadow-green-500/20',
+    'DAMAGE': 'text-red-400 border-red-500/50 shadow-red-500/20'
   };
 
   return (
-    <div className={`flex items-center gap-1.5 bg-black/80 px-2 py-1 rounded-lg border backdrop-blur-sm ${colors[type]} animate-in fade-in slide-in-from-bottom-2 duration-300 shadow-[0_0_10px_rgba(0,0,0,0.5)]`}>
-      <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4" stroke={type === 'SPEED' ? 'currentColor' : 'none'} strokeWidth={type === 'SPEED' ? '2' : '0'}>
+    <div className={`flex items-center gap-1.5 bg-black/80 px-2 py-1 rounded-md border backdrop-blur-md ${colors[type]} animate-in fade-in zoom-in-95 duration-200 shadow-[0_0_10px_rgba(0,0,0,0.5)]`}>
+      <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
         {getIcon()}
       </svg>
-      <span className="text-xs font-black font-mono tabular-nums">{seconds}s</span>
+      <span className="text-[10px] font-black font-mono tabular-nums tracking-tighter">{seconds}s</span>
     </div>
   );
 };
 
 class AudioController {
     ctx: AudioContext | null = null;
+    engineOsc: OscillatorNode | null = null;
+    engineGain: GainNode | null = null;
+
     constructor() {
       try {
         const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-        this.ctx = new AudioContextClass();
+        this.ctx = AudioContextClass ? new AudioContextClass() : null;
       } catch (e) { console.warn("AudioContext unsupported"); }
     }
-    resume() { if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); }
+    
+    resume() { 
+      if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); 
+    }
+
+    setEngine(active: boolean) {
+      if (!this.ctx) return;
+      if (active) {
+        if (!this.engineOsc) {
+          this.engineOsc = this.ctx.createOscillator();
+          this.engineGain = this.ctx.createGain();
+          this.engineOsc.type = 'sawtooth';
+          this.engineOsc.frequency.setValueAtTime(45, this.ctx.currentTime);
+          this.engineGain.gain.setValueAtTime(0, this.ctx.currentTime);
+          this.engineOsc.connect(this.engineGain);
+          this.engineGain.connect(this.ctx.destination);
+          this.engineOsc.start();
+        }
+        this.engineGain?.gain.setTargetAtTime(0.04, this.ctx.currentTime, 0.1);
+        this.engineOsc.frequency.setTargetAtTime(55, this.ctx.currentTime, 0.1);
+      } else {
+        this.engineGain?.gain.setTargetAtTime(0, this.ctx.currentTime, 0.1);
+        this.engineOsc?.frequency.setTargetAtTime(45, this.ctx.currentTime, 0.2);
+      }
+    }
+
     playTone(freq: number, type: OscillatorType, duration: number, vol: number = 0.1) {
       if (!this.ctx) return;
       const osc = this.ctx.createOscillator();
@@ -67,17 +111,20 @@ class AudioController {
       gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
       osc.start(); osc.stop(this.ctx.currentTime + duration);
     }
+
     vibrate(ms: number) { if (navigator.vibrate) navigator.vibrate(ms); }
+    
     playShoot() { this.playTone(180, 'square', 0.1, 0.05); this.vibrate(10); }
     playExplosion() { this.playTone(60, 'sawtooth', 0.4, 0.15); this.vibrate(40); }
     playPowerUp() { this.playTone(550, 'sine', 0.3, 0.1); this.vibrate(20); }
-    playRespawn() { this.playTone(300, 'sine', 0.6, 0.1); }
+    playRespawn() { this.playTone(200, 'sine', 0.5, 0.15); this.playTone(600, 'sine', 0.5, 0.05); }
 }
 
-const GameEngine: React.FC<GameEngineProps> = ({ playerProfile, onGameOver }) => {
+const GameEngine: React.FC<GameEngineProps> = ({ playerProfile, onGameOver, onUpdateSkin, onUnlockSkin }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const audioRef = useRef<AudioController>(new AudioController());
   const frameRef = useRef<number>(0);
+  const earnedBPRef = useRef<number>(0);
   
   const gameState = useRef<GameState>({
     tanks: [], bullets: [], particles: [], powerUps: [],
@@ -99,8 +146,11 @@ const GameEngine: React.FC<GameEngineProps> = ({ playerProfile, onGameOver }) =>
     activePowerUps: {} as Record<string, number>,
     timeLeft: 180,
     isDead: false,
-    respawnTime: 0
+    respawnTime: 0,
+    earnedBP: 0
   });
+
+  const [isGarageOpen, setIsGarageOpen] = useState(false);
 
   const findSafeSpawnPoint = (team: Team, seedIndex: number, map: number[][], currentTanks: Tank[]): Vector2 => {
     const preferred = getSpawnPoint(team, seedIndex);
@@ -113,7 +163,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ playerProfile, onGameOver }) =>
     return preferred;
   };
 
-  const createParticles = (pos: Vector2, color: string, count: number, speedMult: number = 1) => {
+  const createParticles = (pos: Vector2, color: string, count: number, speedMult: number = 1, type: 'NORMAL' | 'SMOKE' | 'GLOW' = 'NORMAL') => {
     for(let i=0; i<count; i++) {
       const angle = Math.random() * Math.PI * 2;
       const speed = (Math.random() * 2 + 1) * speedMult;
@@ -121,10 +171,29 @@ const GameEngine: React.FC<GameEngineProps> = ({ playerProfile, onGameOver }) =>
         id: Math.random().toString(),
         position: { ...pos },
         velocity: { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed },
-        life: 30 + Math.random() * 20,
-        maxLife: 50, color, size: Math.random() * 3 + 2
+        life: type === 'SMOKE' ? 15 + Math.random() * 15 : (type === 'GLOW' ? 40 + Math.random() * 20 : 30 + Math.random() * 20),
+        maxLife: type === 'SMOKE' ? 30 : (type === 'GLOW' ? 60 : 50), 
+        color, 
+        size: type === 'GLOW' ? Math.random() * 10 + 5 : Math.random() * 3 + 2,
+        type
       });
     }
+  };
+
+  const createRespawnEffect = (pos: Vector2, color: string) => {
+    // Neon Shockwave particles
+    for (let i = 0; i < 20; i++) {
+      const angle = (i / 20) * Math.PI * 2;
+      gameState.current.particles.push({
+        id: Math.random().toString(),
+        position: { ...pos },
+        velocity: { x: Math.cos(angle) * 4, y: Math.sin(angle) * 4 },
+        life: 30, maxLife: 30, color, size: 4, type: 'GLOW'
+      });
+    }
+    // Center burst
+    createParticles(pos, color, 40, 2.5, 'GLOW');
+    audioRef.current.playRespawn();
   };
 
   const spawnPowerUp = (s: GameState) => {
@@ -166,8 +235,9 @@ const GameEngine: React.FC<GameEngineProps> = ({ playerProfile, onGameOver }) =>
   const respawnTank = (tank: Tank) => {
     tank.position = findSafeSpawnPoint(tank.team, Math.floor(Math.random() * 10), gameState.current.map, gameState.current.tanks);
     tank.health = tank.maxHealth; tank.isDead = false; tank.activePowerUps = { 'SHIELD': 120 };
-    audioRef.current.playRespawn();
-    createParticles(tank.position, tank.team === 'BLUE' ? TEAM_BLUE_COLOR : TEAM_RED_COLOR, 30, 2);
+    tank.skin = playerProfile.equippedSkin; 
+    createRespawnEffect(tank.position, tank.team === 'BLUE' ? TEAM_BLUE_COLOR : TEAM_RED_COLOR);
+    setIsGarageOpen(false);
   };
 
   const damageTank = (tank: Tank, amount: number, attackerId: string) => {
@@ -181,6 +251,9 @@ const GameEngine: React.FC<GameEngineProps> = ({ playerProfile, onGameOver }) =>
       if (attacker && attacker.team !== tank.team) {
         attacker.stats.kills++;
         if (attacker.team === 'BLUE') gameState.current.score.BLUE++; else gameState.current.score.RED++;
+        if (attacker.type === EntityType.PLAYER) {
+          earnedBPRef.current += 100;
+        }
       }
     }
   };
@@ -197,11 +270,12 @@ const GameEngine: React.FC<GameEngineProps> = ({ playerProfile, onGameOver }) =>
       isDead: false, respawnTimer: 0, activePowerUps: {}, stats: {kills:0,deaths:0,shotsFired:0,shotsHit:0}
     };
 
+    const botSkinPool: SkinId[] = ['DEFAULT', 'CYBER', 'STEALTH', 'MECHA'];
     const tanks = [playerTank];
     for (let i = 0; i < 3; i++) {
       const team = i === 0 ? 'BLUE' : 'RED';
       tanks.push({
-        id: `bot-${i}`, type: EntityType.BOT, team, skin: 'DEFAULT',
+        id: `bot-${i}`, type: EntityType.BOT, team, skin: botSkinPool[Math.floor(Math.random() * botSkinPool.length)],
         position: findSafeSpawnPoint(team, i+1, gameState.current.map, tanks),
         rotation: team === 'RED' ? Math.PI/2 : -Math.PI/2, turretRotation: team === 'RED' ? Math.PI/2 : -Math.PI/2,
         velocity: {x:0,y:0}, health: 100, maxHealth: 100, cooldown: 0, username: `BOT-${i+1}`,
@@ -224,14 +298,18 @@ const GameEngine: React.FC<GameEngineProps> = ({ playerProfile, onGameOver }) =>
           activePowerUps: { ...p.activePowerUps } as Record<string, number>,
           timeLeft: Math.ceil(gameState.current.timeLeft),
           isDead: p.isDead,
-          respawnTime: Math.ceil(p.respawnTimer / 60)
+          respawnTime: Math.ceil(p.respawnTimer / 60),
+          earnedBP: earnedBPRef.current
         });
       }
       if (!gameState.current.isGameOver) frameRef.current = requestAnimationFrame(loop);
-      else onGameOver(gameState.current.winner!);
+      else onGameOver(gameState.current.winner!, earnedBPRef.current);
     };
     frameRef.current = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(frameRef.current);
+    return () => {
+      cancelAnimationFrame(frameRef.current);
+      audioRef.current.setEngine(false);
+    }
   }, []);
 
   const update = (dt: number) => {
@@ -248,14 +326,25 @@ const GameEngine: React.FC<GameEngineProps> = ({ playerProfile, onGameOver }) =>
     if (player && !player.isDead) {
       let dx = inputs.moveVector.x;
       let dy = inputs.moveVector.y;
+      
       if (dx !== 0 || dy !== 0) {
+        audioRef.current.setEngine(true);
         const speed = !!player.activePowerUps['SPEED'] ? TANK_SPEED * 1.5 : TANK_SPEED;
         const mag = Math.sqrt(dx*dx + dy*dy);
         const vx = (dx/mag) * speed;
         const vy = (dy/mag) * speed;
         player.rotation = Math.atan2(vy, vx);
+        
         if (!checkTileCollision(player.position.x + vx, player.position.y, s.map)) player.position.x += vx;
         if (!checkTileCollision(player.position.x, player.position.y + vy, s.map)) player.position.y += vy;
+        
+        if (player.skin === 'MECHA' && Math.random() < 0.2) {
+          const exhaustX = player.position.x - Math.cos(player.rotation) * 15;
+          const exhaustY = player.position.y - Math.sin(player.rotation) * 15;
+          createParticles({ x: exhaustX, y: exhaustY }, '#475569', 1, 0.5, 'SMOKE');
+        }
+      } else {
+        audioRef.current.setEngine(false);
       }
       
       if (Math.abs(inputs.aimVector.x) > 0.1 || Math.abs(inputs.aimVector.y) > 0.1) {
@@ -267,6 +356,8 @@ const GameEngine: React.FC<GameEngineProps> = ({ playerProfile, onGameOver }) =>
         if (!inputs.aimVector.x) player.turretRotation = Math.atan2(mDy, mDx);
       }
       if (inputs.shoot) fireBullet(player);
+    } else {
+      audioRef.current.setEngine(false);
     }
 
     s.tanks.forEach(t => {
@@ -283,6 +374,12 @@ const GameEngine: React.FC<GameEngineProps> = ({ playerProfile, onGameOver }) =>
             if (!checkTileCollision(t.position.x + vx, t.position.y, s.map)) t.position.x += vx;
             if (!checkTileCollision(t.position.x, t.position.y + vy, s.map)) t.position.y += vy;
             t.rotation = angle;
+            
+            if (t.skin === 'MECHA' && Math.random() < 0.1) {
+              const exX = t.position.x - Math.cos(t.rotation) * 15;
+              const exY = t.position.y - Math.sin(t.rotation) * 15;
+              createParticles({ x: exX, y: exY }, '#475569', 1, 0.3, 'SMOKE');
+            }
           }
           if (dist < 400 && t.cooldown <= 0 && Math.random() < 0.05) fireBullet(t);
         }
@@ -308,6 +405,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ playerProfile, onGameOver }) =>
       const hit = checkBulletMapCollision(b, s.map);
       if (hit.hit) {
         if (hit.tileType === TILE_BRICK) { s.map[hit.r][hit.c] = 0; audioRef.current.playExplosion(); }
+        else { audioRef.current.playTone(400, 'sine', 0.05, 0.02); } 
         s.bullets.splice(i, 1); continue;
       }
       for (const t of s.tanks) {
@@ -329,7 +427,6 @@ const GameEngine: React.FC<GameEngineProps> = ({ playerProfile, onGameOver }) =>
     const s = gameState.current;
     ctx.fillStyle = '#020617'; ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
     
-    // Grid de Fundo
     ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1;
     for (let i = 0; i < CANVAS_WIDTH; i += TILE_SIZE) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, CANVAS_HEIGHT); ctx.stroke(); }
     for (let i = 0; i < CANVAS_HEIGHT; i += TILE_SIZE) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(CANVAS_WIDTH, i); ctx.stroke(); }
@@ -353,7 +450,13 @@ const GameEngine: React.FC<GameEngineProps> = ({ playerProfile, onGameOver }) =>
 
     s.particles.forEach(p => {
       ctx.globalAlpha = p.life/p.maxLife; ctx.fillStyle = p.color;
-      ctx.fillRect(p.position.x, p.position.y, p.size, p.size);
+      if (p.type === 'SMOKE' || p.type === 'GLOW') {
+          if (p.type === 'GLOW') { ctx.shadowBlur = p.size; ctx.shadowColor = p.color; }
+          ctx.beginPath(); ctx.arc(p.position.x, p.position.y, p.size / 2, 0, Math.PI*2); ctx.fill();
+          ctx.shadowBlur = 0;
+      } else {
+          ctx.fillRect(p.position.x, p.position.y, p.size, p.size);
+      }
     });
     ctx.globalAlpha = 1;
 
@@ -361,43 +464,125 @@ const GameEngine: React.FC<GameEngineProps> = ({ playerProfile, onGameOver }) =>
       if (t.isDead) return;
       ctx.save(); ctx.translate(t.position.x, t.position.y);
       
-      // SHIELD Effect
       if (t.activePowerUps['SHIELD']) {
         ctx.beginPath(); ctx.strokeStyle = '#22d3ee'; ctx.lineWidth = 2;
-        ctx.arc(0, 0, TANK_SIZE - 2, 0, Math.PI*2); ctx.stroke();
+        ctx.arc(0, 0, TANK_SIZE + 2, 0, Math.PI*2); ctx.stroke();
       }
 
+      ctx.save();
       ctx.rotate(t.rotation);
-      const accent = t.team === 'BLUE' ? TEAM_BLUE_COLOR : TEAM_RED_COLOR;
-      ctx.fillStyle = t.team === 'BLUE' ? '#1e3a8a' : '#7f1d1d';
-      ctx.fillRect(-14, -14, 28, 28);
-      ctx.strokeStyle = accent; ctx.lineWidth = 2; ctx.strokeRect(-14, -14, 28, 28);
+      const teamColor = t.team === 'BLUE' ? TEAM_BLUE_COLOR : TEAM_RED_COLOR;
+      const bodyColor = t.team === 'BLUE' ? '#1e3a8a' : '#7f1d1d';
+      
+      if (t.skin === 'CYBER') {
+          ctx.fillStyle = '#000';
+          ctx.fillRect(-14, -14, 28, 28);
+          ctx.strokeStyle = teamColor;
+          ctx.lineWidth = 2.5;
+          ctx.shadowBlur = 10; ctx.shadowColor = teamColor;
+          ctx.strokeRect(-14, -14, 28, 28);
+          ctx.shadowBlur = 0;
+          const pulse = (Math.sin(Date.now() / 150) + 1) / 2;
+          ctx.lineWidth = 1;
+          ctx.globalAlpha = 0.2 + pulse * 0.4;
+          ctx.beginPath();
+          ctx.moveTo(-14, 0); ctx.lineTo(14, 0);
+          ctx.moveTo(0, -14); ctx.lineTo(0, 14);
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+          const scanY = (Date.now() / 5) % 28 - 14;
+          ctx.fillStyle = teamColor; ctx.globalAlpha = 0.3;
+          ctx.fillRect(-14, scanY, 28, 2); ctx.globalAlpha = 1;
+      } else if (t.skin === 'STEALTH') {
+          const camoAlpha = 0.5 + ((Math.sin(Date.now() / 400) + 1) / 2) * 0.3;
+          ctx.globalAlpha = camoAlpha;
+          ctx.fillStyle = '#1e293b'; 
+          ctx.fillRect(-14, -14, 28, 28);
+          ctx.strokeStyle = '#334155'; ctx.lineWidth = 1; ctx.strokeRect(-14, -14, 28, 28);
+          ctx.fillStyle = teamColor;
+          ctx.fillRect(-14, -14, 4, 4); ctx.fillRect(10, -14, 4, 4);
+          ctx.fillRect(-14, 10, 4, 4); ctx.fillRect(10, 10, 4, 4);
+          ctx.globalAlpha = 1;
+      } else if (t.skin === 'MECHA') {
+          ctx.fillStyle = '#475569'; 
+          ctx.fillRect(-14, -14, 28, 28);
+          ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2; ctx.strokeRect(-14, -14, 28, 28);
+          ctx.fillStyle = teamColor;
+          ctx.shadowBlur = 5; ctx.shadowColor = teamColor;
+          ctx.fillRect(-6, -6, 12, 12);
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = '#cbd5e1';
+          ctx.fillRect(-12, -12, 3, 3); ctx.fillRect(9, -12, 3, 3);
+          ctx.fillRect(-12, 9, 3, 3); ctx.fillRect(9, 9, 3, 3);
+          ctx.fillRect(-14, -4, 4, 8); ctx.fillRect(10, -4, 4, 8);
+      } else {
+          ctx.fillStyle = bodyColor;
+          ctx.fillRect(-14, -14, 28, 28);
+          ctx.strokeStyle = teamColor; ctx.lineWidth = 2; ctx.strokeRect(-14, -14, 28, 28);
+          ctx.fillStyle = teamColor;
+          ctx.globalAlpha = 0.3; ctx.fillRect(-7, -7, 14, 14); ctx.globalAlpha = 1;
+      }
       ctx.restore();
 
-      ctx.save(); ctx.translate(t.position.x, t.position.y); ctx.rotate(t.turretRotation);
+      ctx.save(); 
+      ctx.rotate(t.turretRotation);
       
-      // COOLDOWN INDICATOR (Anel de recarga)
       const maxCD = t.activePowerUps['RAPID_FIRE'] ? 8 : FIRE_COOLDOWN;
+      
+      const indicatorRadius = 18;
       if (t.cooldown > 0) {
+        const progress = t.cooldown / maxCD;
         ctx.beginPath();
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-        ctx.lineWidth = 3;
-        ctx.arc(0, 0, 16, -Math.PI/2, -Math.PI/2 + (Math.PI * 2 * (t.cooldown / maxCD)));
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+        ctx.lineWidth = 4;
+        ctx.arc(0, 0, indicatorRadius, 0, Math.PI * 2);
         ctx.stroke();
+
+        ctx.beginPath();
+        ctx.strokeStyle = t.team === 'BLUE' ? TEAM_BLUE_COLOR : TEAM_RED_COLOR;
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        ctx.arc(0, 0, indicatorRadius, -Math.PI / 2, -Math.PI / 2 + (Math.PI * 2 * progress));
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 4;
+        const currentAngle = -Math.PI / 2 + (Math.PI * 2 * progress);
+        ctx.arc(0, 0, indicatorRadius, currentAngle - 0.2, currentAngle);
+        ctx.stroke();
+      } else {
+        const readyPulse = (Math.sin(Date.now() / 120) + 1) / 2;
+        ctx.shadowBlur = 8 + readyPulse * 15;
+        ctx.shadowColor = teamColor;
+        ctx.beginPath();
+        ctx.strokeStyle = teamColor;
+        ctx.lineWidth = 1.5;
+        ctx.globalAlpha = 0.1 + (readyPulse * 0.3);
+        ctx.arc(0, 0, indicatorRadius + 2 + readyPulse * 3, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1.0;
       }
 
-      // RAPID FIRE GLOW (Brilho na torre)
       if (t.activePowerUps['RAPID_FIRE']) {
         ctx.shadowBlur = 15;
         ctx.shadowColor = '#fbbf24';
       }
 
-      ctx.fillStyle = '#94a3b8'; ctx.fillRect(0, -5, 24, 10);
-      ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = (t.skin === 'STEALTH') ? '#0f172a' : (t.skin === 'CYBER' ? '#000' : (t.skin === 'MECHA' ? '#334155' : '#94a3b8'));
+      if (t.skin === 'CYBER') {
+          ctx.strokeStyle = teamColor; ctx.lineWidth = 1;
+          ctx.strokeRect(0, -5, 24, 10); ctx.fillRect(0, -5, 24, 10);
+          ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+      } else {
+          ctx.fillRect(0, -5, 24, 10);
+          ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI*2); ctx.fill();
+      }
       ctx.restore();
 
       ctx.fillStyle = 'white'; ctx.font = 'bold 12px Rajdhani'; ctx.textAlign = 'center';
-      ctx.fillText(t.username, t.position.x, t.position.y - 35);
+      ctx.fillText(t.username, 0, -35);
+      ctx.restore();
     });
 
     s.bullets.forEach(b => {
@@ -418,71 +603,139 @@ const GameEngine: React.FC<GameEngineProps> = ({ playerProfile, onGameOver }) =>
       
       <div 
         className="fixed inset-0 pointer-events-none z-10 transition-opacity duration-300"
-        style={{ boxShadow: 'inset 0 0 100px rgba(239, 68, 68, 0.5)', opacity: ui.health < 30 ? 1 : 0 }}
+        style={{ 
+          boxShadow: 'inset 0 0 100px rgba(239, 68, 68, 0.6)', 
+          opacity: ui.health < 30 ? (0.4 + Math.sin(Date.now()/100)*0.2) : 0 
+        }}
       />
 
-      {/* --- HUD TOP --- */}
-      <div className="flex items-center justify-center px-6 pt-[var(--sat)] h-20 pointer-events-none z-30">
-        <div className="flex items-center gap-6 bg-slate-900/90 backdrop-blur-md px-6 py-2 rounded-2xl border border-white/10 shadow-2xl">
-          <div className="flex flex-col items-center">
-            <span className="text-[10px] text-cyan-500 font-black tracking-widest uppercase">BLUE</span>
-            <span className="text-white font-black text-2xl">{ui.score.BLUE}</span>
-          </div>
-          <div className="flex flex-col items-center min-w-[60px]">
-            <span className="text-[10px] text-white/40 font-bold tracking-widest uppercase">TIME</span>
-            <span className="font-mono text-cyan-400 font-black text-xl">
-              {Math.floor(Number(ui.timeLeft) / 60)}:{(Number(ui.timeLeft) % 60).toString().padStart(2, '0')}
-            </span>
-          </div>
-          <div className="flex flex-col items-center">
-            <span className="text-[10px] text-red-500 font-black tracking-widest uppercase">RED</span>
-            <span className="text-white font-black text-2xl">{ui.score.RED}</span>
-          </div>
+      {/* --- REFACTORED MOBILE HUD TOP --- */}
+      <div className="fixed top-0 left-0 w-full px-4 pt-[var(--sat)] h-20 flex items-center justify-between pointer-events-none z-30">
+        
+        {/* Battle Points & Player Status (Left) */}
+        <div className="flex flex-col gap-1.5 bg-slate-900/80 backdrop-blur-lg border border-white/5 p-2 rounded-xl shadow-xl min-w-[90px]">
+           <div className="flex items-center gap-1.5">
+              <svg viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 text-orange-400">
+                <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" />
+              </svg>
+              <span className="text-[10px] font-mono font-black text-white">{ui.earnedBP + playerProfile.battlePoints} BP</span>
+           </div>
+           <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+              <div 
+                className={`h-full transition-all duration-300 ${ui.health < 30 ? 'bg-red-500' : 'bg-cyan-500'}`} 
+                style={{ width: `${ui.health}%` }}
+              />
+           </div>
         </div>
+
+        {/* Unified Match Header (Center) */}
+        <div className="flex items-center bg-slate-900/90 backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/10 shadow-2xl gap-3">
+          <span className="text-cyan-400 font-black text-lg">{ui.score.BLUE}</span>
+          <div className="flex flex-col items-center">
+             <span className="text-[8px] text-white/40 font-bold uppercase tracking-widest">Time</span>
+             <span className={`font-mono font-black text-sm leading-tight ${ui.timeLeft < 30 ? 'text-red-500 animate-pulse' : 'text-white'}`}>
+                {Math.floor(Number(ui.timeLeft) / 60)}:{(Number(ui.timeLeft) % 60).toString().padStart(2, '0')}
+             </span>
+          </div>
+          <span className="text-red-500 font-black text-lg">{ui.score.RED}</span>
+        </div>
+
+        <div className="w-20" /> 
       </div>
 
-      {/* --- GAME ARENA --- */}
-      <div className="flex-1 relative flex items-center justify-center overflow-hidden p-2">
-        <div className="relative w-full h-full max-w-[450px] aspect-[9/16] bg-black shadow-2xl rounded-sm border border-white/5 overflow-hidden">
+      <div className="flex-1 relative flex items-center justify-center overflow-hidden">
+        <div className="relative w-full h-full max-w-[450px] aspect-[9/16] bg-black shadow-inner overflow-hidden border-x border-white/5">
           <canvas ref={canvasRef} width={CANVAS_WIDTH} height={CANVAS_HEIGHT} className="w-full h-full object-contain" />
           
           {ui.isDead && (
-            <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/80 backdrop-blur-md">
-              <div className="text-center p-10 bg-slate-900/90 border border-red-500/30 rounded-3xl shadow-2xl">
-                <h2 className="text-red-500 text-3xl font-black mb-2 font-heading tracking-tighter uppercase">Tank Destroyed</h2>
-                <p className="text-white/40 mb-6 font-mono text-sm tracking-widest animate-pulse italic">RECONNECTING TO SYSTEM...</p>
-                <div className="text-6xl font-black text-white">{ui.respawnTime}</div>
+            <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/80 backdrop-blur-md">
+              <div className="text-center p-8 bg-slate-900/95 border border-red-500/50 rounded-3xl shadow-2xl animate-in fade-in zoom-in-95 duration-300">
+                <h2 className="text-red-500 text-xl font-black mb-1 font-heading uppercase tracking-tighter">System Offline</h2>
+                <div className="text-6xl font-black text-white font-mono mb-4">{ui.respawnTime}</div>
+                <button 
+                  onClick={() => setIsGarageOpen(true)}
+                  className="px-6 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-lg shadow-lg shadow-cyan-500/30 transition-all uppercase tracking-widest text-xs"
+                >
+                  Quick Garage
+                </button>
               </div>
+
+              {isGarageOpen && (
+                <div className="absolute inset-0 bg-slate-950/95 z-50 flex flex-col p-6 animate-in slide-in-from-bottom duration-300">
+                   <div className="flex justify-between items-center mb-6">
+                      <h3 className="text-cyan-400 font-black tracking-tighter text-2xl font-heading">GARAGE</h3>
+                      <button onClick={() => setIsGarageOpen(false)} className="text-white/40 hover:text-white uppercase text-[10px] font-black tracking-widest">Close</button>
+                   </div>
+                   
+                   <div className="flex-1 overflow-y-auto space-y-3">
+                      {Object.keys(SKINS).map(skinId => {
+                         const id = skinId as SkinId;
+                         const skin = SKINS[id];
+                         const isUnlocked = playerProfile.unlockedSkins.includes(id);
+                         const isEquipped = playerProfile.equippedSkin === id;
+                         const canAfford = (playerProfile.battlePoints + earnedBPRef.current) >= skin.price;
+
+                         return (
+                            <div key={id} className={`p-4 rounded-xl border flex justify-between items-center transition-all ${isEquipped ? 'bg-cyan-500/10 border-cyan-500 shadow-lg shadow-cyan-500/20' : 'bg-slate-900 border-slate-700 hover:border-slate-500'}`}>
+                               <div className="flex flex-col">
+                                  <span className={`font-black text-sm tracking-tight ${isEquipped ? 'text-cyan-400' : 'text-white'}`}>{skin.name}</span>
+                                  <span className="text-[10px] text-white/40 italic">{skin.description}</span>
+                               </div>
+                               <div>
+                                  {isUnlocked ? (
+                                     <button 
+                                      disabled={isEquipped}
+                                      onClick={() => onUpdateSkin?.(id)}
+                                      className={`px-4 py-1.5 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all ${isEquipped ? 'bg-cyan-500 text-black' : 'bg-slate-800 text-white hover:bg-slate-700'}`}
+                                     >
+                                        {isEquipped ? 'Equipped' : 'Select'}
+                                     </button>
+                                  ) : (
+                                     <button 
+                                      disabled={!canAfford}
+                                      onClick={() => onUnlockSkin?.(id)}
+                                      className={`px-4 py-1.5 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 ${canAfford ? 'bg-orange-500 text-black hover:bg-orange-400' : 'bg-slate-800 text-white/20'}`}
+                                     >
+                                        Unlock {skin.price} BP
+                                     </button>
+                                  )}
+                               </div>
+                            </div>
+                         );
+                      })}
+                   </div>
+                </div>
+              )}
             </div>
           )}
         </div>
       </div>
 
-      {/* --- CONTROLS AREA --- */}
-      <div className="flex flex-col h-64 pb-[var(--sab)] px-6 relative z-50 bg-slate-950/40 backdrop-blur-sm border-t border-white/5">
+      {/* --- REFACTORED MOBILE CONTROLS --- */}
+      <div className="relative h-72 pb-[var(--sab)] flex flex-col items-center justify-end z-50">
         
-        {/* Health Bar & Power-ups (Bottom Center) */}
-        <div className="flex flex-col items-center -translate-y-10 pointer-events-none">
-           {/* Power-ups HUD near health bar */}
-           <div className="flex items-center justify-center gap-3 mb-4">
-              {Object.entries(ui.activePowerUps).map(([type, frames]) => (
-                <PowerUpHUDItem key={type} type={type as PowerUpType} frames={Number(frames)} />
-              ))}
+        {/* Tactical Overlay (Active Items) */}
+        <div className="absolute top-0 w-full px-6 pointer-events-none">
+           <div className="flex flex-wrap justify-center gap-2 h-10 items-center">
+              {Object.entries(ui.activePowerUps).length > 0 ? (
+                Object.entries(ui.activePowerUps).map(([type, frames]) => (
+                  <PowerUpHUDItem key={type} type={type as PowerUpType} frames={Number(frames)} />
+                ))
+              ) : (
+                <span className="text-[8px] text-white/10 uppercase tracking-[0.4em] font-black">System Nominal</span>
+              )}
            </div>
-
-           <div className="w-64 h-3.5 bg-slate-900 rounded-full border border-white/30 overflow-hidden shadow-2xl ring-4 ring-black/60 relative">
-              <div 
-                className={`h-full transition-all duration-300 ${ui.health < 30 ? 'bg-red-500 animate-pulse' : 'bg-gradient-to-r from-cyan-400 to-blue-600'}`}
-                style={{ width: `${ui.health}%` }}
-              />
-           </div>
-           <div className="text-[10px] text-center text-white/50 font-black mt-2 tracking-[0.4em] uppercase drop-shadow-md">Combat Integrity</div>
         </div>
 
-        {/* Joystick Layout */}
-        <div className="flex-1 flex items-center justify-between -mt-8">
-          <VirtualJoystick onMove={handleJoystickMove} label="MOVE" size={150} color="blue" />
-          <VirtualJoystick onMove={handleJoystickAim} label="AIM & FIRE" size={150} color="red" />
+        {/* Ergonimic Joysticks */}
+        <div className="w-full h-full flex items-center justify-between px-8 pt-6">
+          <div className="flex flex-col items-center gap-2">
+            <VirtualJoystick onMove={handleJoystickMove} size={155} color="blue" />
+          </div>
+          
+          <div className="flex flex-col items-center gap-2">
+            <VirtualJoystick onMove={handleJoystickAim} size={155} color="red" />
+          </div>
         </div>
       </div>
 

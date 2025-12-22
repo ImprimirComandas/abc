@@ -24,11 +24,11 @@ export const POWERUP_DURATION = 600; // 10 seconds @ 60fps
 export const POWERUP_SPAWN_INTERVAL = 400; // Slower spawn due to smaller map
 
 // Skins
-export const SKINS: Record<string, { name: string, description: string }> = {
-    DEFAULT: { name: 'Standard Issue', description: 'Reliable. Robust. Classic.' },
-    CYBER: { name: 'Cyber Grid', description: 'High-contrast neon circuitry.' },
-    STEALTH: { name: 'Night Ops', description: 'Matte finish. Minimal signature.' },
-    MECHA: { name: 'Heavy Plate', description: 'Industrial reinforced styling.' },
+export const SKINS: Record<string, { name: string, description: string, price: number }> = {
+    DEFAULT: { name: 'Standard Issue', description: 'Reliable. Robust. Classic.', price: 0 },
+    CYBER: { name: 'Cyber Grid', description: 'High-contrast neon circuitry with grid pulse.', price: 500 },
+    STEALTH: { name: 'Night Ops', description: 'Matte finish. Minimal signature. Active Camo.', price: 1000 },
+    MECHA: { name: 'Heavy Plate', description: 'Industrial reinforced styling. High exhaust output.', price: 1500 },
 };
 
 // Map Codes
@@ -38,8 +38,6 @@ export const TILE_STEEL = 2;
 export const TILE_WATER = 3;
 
 // Vertical Maps (15x26)
-// Ensure top 2 rows and bottom 2 rows are mostly empty for safe spawning
-
 export const LEVEL_1 = [
   [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
   [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],

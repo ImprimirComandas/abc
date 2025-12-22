@@ -24,6 +24,7 @@ export interface PlayerProfile {
   color: string;
   unlockedSkins: SkinId[];
   equippedSkin: SkinId;
+  battlePoints: number;
 }
 
 export interface RoomData {
@@ -84,6 +85,7 @@ export interface Particle {
   maxLife: number;
   color: string;
   size: number;
+  type?: 'NORMAL' | 'SMOKE' | 'GLOW';
 }
 
 export interface GameState {

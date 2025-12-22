@@ -25,12 +25,13 @@ const MainMenu: React.FC<MainMenuProps> = ({ onJoin }) => {
       setError('Username must be at least 3 characters');
       return;
     }
-    // Initialize profile with all skins unlocked for demo purposes
+    // Initialize profile with only default skin unlocked and 500 starting BP
     onJoin({ 
         username, 
         color: selectedColor,
-        unlockedSkins: ['DEFAULT', 'CYBER', 'STEALTH', 'MECHA'],
-        equippedSkin: 'DEFAULT'
+        unlockedSkins: ['DEFAULT'],
+        equippedSkin: 'DEFAULT',
+        battlePoints: 500
     });
   };
 
@@ -90,7 +91,7 @@ const MainMenu: React.FC<MainMenuProps> = ({ onJoin }) => {
         </form>
 
         <div className="mt-6 text-center text-xs text-gray-500">
-          <p>VERSION 1.0.4 // CONNECTED TO BOLT.REALTIME</p>
+          <p>VERSION 1.1.0 // CONNECTED TO BOLT.REALTIME</p>
         </div>
       </div>
     </div>
